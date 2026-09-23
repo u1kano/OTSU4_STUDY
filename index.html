@@ -11,13 +11,33 @@
 <!-- Header -->
 <header class="bg-indigo-600 text-white p-4 sticky top-0 z-10 shadow-md">
 <h1 class="text-lg font-bold text-center">危険物乙4 模擬試験</h1>
-<p class="text-xs text-center text-indigo-200 mt-1" id="progress-info">読み込み中...</p>
+<p class="text-xs text-center text-indigo-200 mt-1" id="progress-info">出題範囲を選択してください</p>
 </header>
 
 <!-- Main Content Area -->
 <main class="p-4 flex-1 overflow-y-auto" id="main-content">
+<!-- Category Select Screen -->
+<div id="category-screen">
+<h2 class="text-base font-bold text-slate-900 mb-4">出題範囲を選択してください</h2>
+<div class="space-y-3" id="category-options">
+<label class="flex items-start p-3 border rounded-xl cursor-pointer transition border-indigo-600 bg-indigo-50/50">
+<input type="radio" name="category" value="questions.json" checked onclick="updateCategoryHighlight()" class="mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+<span class="ml-3 text-sm text-slate-700 leading-snug">危険物に関する法令</span>
+</label>
+<label class="flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50">
+<input type="radio" name="category" value="questions2.json" onclick="updateCategoryHighlight()" class="mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+<span class="ml-3 text-sm text-slate-700 leading-snug">基礎的な物理学及び基礎的な化学</span>
+</label>
+<label class="flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50">
+<input type="radio" name="category" value="questions3.json" onclick="updateCategoryHighlight()" class="mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+<span class="ml-3 text-sm text-slate-700 leading-snug">危険物の性質・火災予防及び消火方法</span>
+</label>
+</div>
+<button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
+</div>
+
 <!-- Quiz Screen -->
-<div id="quiz-screen">
+<div id="quiz-screen" class="hidden">
 <div class="mb-4">
 <span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="question-tag">-</span>
 <h2 class="text-base font-semibold mt-2 text-slate-900 leading-relaxed whitespace-pre-wrap" id="question-text">データを読み込んでいます...</h2>
@@ -41,7 +61,7 @@
 </main>
 
 <!-- Footer Navigation -->
-<footer class="p-4 bg-white border-t border-slate-100 sticky bottom-0" id="footer-nav">
+<footer class="p-4 bg-white border-t border-slate-100 sticky bottom-0 hidden" id="footer-nav">
 <div class="flex gap-3">
 <button id="prev-btn" onclick="prevQuestion()" class="flex-1 bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl active:bg-slate-300 transition disabled:opacity-50">前へ</button>
 <button id="next-btn" onclick="nextQuestion()" class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl active:bg-indigo-700 transition">次へ</button>
@@ -63,10 +83,36 @@ let questions = [];    // 今回出題する問題
 let currentIdx = 0;
 let userAnswers = [];
 
-// 外部のJSONファイル（questions.json）から問題を読み込む
-async function loadQuestions() {
+// カテゴリ選択画面で「試験を開始する」が押されたときの処理
+function startWithSelectedCategory() {
+const selected = document.querySelector('input[name="category"]:checked');
+const fileName = selected ? selected.value : 'questions.json';
+
+document.getElementById('category-screen').classList.add('hidden');
+document.getElementById('quiz-screen').classList.remove('hidden');
+document.getElementById('footer-nav').classList.remove('hidden');
+document.getElementById('question-text').innerText = "データを読み込んでいます...";
+document.getElementById('progress-info').innerText = "読み込み中...";
+
+loadQuestions(fileName);
+}
+
+// カテゴリ選択画面のラジオボタンの見た目を選択状態に応じて更新
+function updateCategoryHighlight() {
+document.querySelectorAll('#category-options label').forEach(label => {
+const input = label.querySelector('input[type="radio"]');
+if (input.checked) {
+label.className = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-indigo-600 bg-indigo-50/50';
+} else {
+label.className = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50';
+}
+});
+}
+
+// 外部のJSONファイルから問題を読み込む（引数で読み込むファイルを指定）
+async function loadQuestions(fileName) {
 try {
-const response = await fetch('questions.json');
+const response = await fetch(fileName);
 if (!response.ok) throw new Error('Network response was not ok');
 allQuestions = await response.json();
 
@@ -277,15 +323,16 @@ reviewContainer.appendChild(card);
 }
 
 function restartQuiz() {
-startQuiz();
 document.getElementById('result-screen').classList.add('hidden');
-document.getElementById('quiz-screen').classList.remove('hidden');
-document.getElementById('footer-nav').classList.remove('hidden');
+document.getElementById('quiz-screen').classList.add('hidden');
+document.getElementById('footer-nav').classList.add('hidden');
+document.getElementById('category-screen').classList.remove('hidden');
+document.getElementById('progress-info').innerText = "出題範囲を選択してください";
 window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// アプリ起動時にデータ読み込みを実行
-loadQuestions();
+// アプリ起動時はカテゴリ選択画面を表示するだけで、
+// 問題データの読み込みは startWithSelectedCategory() が呼ばれてから行う
 </script>
 </body>
 </html>
