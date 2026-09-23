@@ -75,7 +75,7 @@
 // ==========================================
 // true  : 問題をランダムに抽出する（シャッフルする）
 // false : JSONに記述された順番のまま出題する
-const RANDOM_QUESTIONS = false; 
+const RANDOM_QUESTIONS = true; 
 // ==========================================
 
 let allQuestions = []; // JSONから読み込んだ全問題
@@ -323,10 +323,11 @@ reviewContainer.appendChild(card);
 }
 
 function restartQuiz() {
-startQuiz();
 document.getElementById('result-screen').classList.add('hidden');
-document.getElementById('quiz-screen').classList.remove('hidden');
-document.getElementById('footer-nav').classList.remove('hidden');
+document.getElementById('quiz-screen').classList.add('hidden');
+document.getElementById('footer-nav').classList.add('hidden');
+document.getElementById('category-screen').classList.remove('hidden');
+document.getElementById('progress-info').innerText = "出題範囲を選択してください";
 window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
