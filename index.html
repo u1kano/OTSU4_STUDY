@@ -33,6 +33,30 @@
 <span class="ml-3 text-sm text-slate-700 leading-snug">危険物の性質・火災予防及び消火方法</span>
 </label>
 </div>
+<hr class="my-5 border-slate-200">
+<div class="mb-2">
+<label for="random-select" class="block text-sm font-semibold text-slate-700 mb-2">出題順</label>
+<select id="random-select" class="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-700 focus:ring-indigo-500 focus:border-indigo-500">
+<option value="true" selected>ランダムあり</option>
+<option value="false">ランダムなし</option>
+</select>
+</div>
+<hr class="my-5 border-slate-200">
+<div class="mb-2">
+<label for="count-select" class="block text-sm font-semibold text-slate-700 mb-2">出題数</label>
+<select id="count-select" class="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-700 focus:ring-indigo-500 focus:border-indigo-500">
+<option value="5">5問</option>
+<option value="10" selected>10問</option>
+<option value="15">15問</option>
+<option value="20">20問</option>
+<option value="25">25問</option>
+<option value="30">30問</option>
+<option value="35">35問</option>
+<option value="40">40問</option>
+<option value="45">45問</option>
+<option value="50">50問</option>
+</select>
+</div>
 <button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
 </div>
 
@@ -75,7 +99,11 @@
 // ==========================================
 // true  : 問題をランダムに抽出する（シャッフルする）
 // false : JSONに記述された順番のまま出題する
-const RANDOM_QUESTIONS = true; 
+// ※カテゴリ選択画面のプルダウンで変更されるため const ではなく let
+let RANDOM_QUESTIONS = true; 
+
+// 出題数（カテゴリ選択画面のプルダウンで変更される）
+let QUESTION_COUNT = 10;
 // ==========================================
 
 let allQuestions = []; // JSONから読み込んだ全問題
@@ -87,6 +115,12 @@ let userAnswers = [];
 function startWithSelectedCategory() {
 const selected = document.querySelector('input[name="category"]:checked');
 const fileName = selected ? selected.value : 'questions.json';
+
+const randomSelect = document.getElementById('random-select');
+RANDOM_QUESTIONS = randomSelect ? randomSelect.value === 'true' : true;
+
+const countSelect = document.getElementById('count-select');
+QUESTION_COUNT = countSelect ? parseInt(countSelect.value, 10) : 10;
 
 document.getElementById('category-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
@@ -130,7 +164,7 @@ console.error(error);
 
 // クイズを開始
 function startQuiz() {
-const selectCount = Math.min(12, allQuestions.length);
+const selectCount = Math.min(QUESTION_COUNT, allQuestions.length);
 
 if (RANDOM_QUESTIONS) {
 const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
