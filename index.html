@@ -174,12 +174,22 @@ console.error(error);
 }
 }
 
+// Fisher-Yates シャッフル（偏りなく並べ替える。元の配列は変更しない）
+function shuffleArray(arr) {
+const a = [...arr];
+for (let i = a.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[a[i], a[j]] = [a[j], a[i]];
+}
+return a;
+}
+
 // クイズを開始
 function startQuiz() {
 const selectCount = Math.min(QUESTION_COUNT, allQuestions.length);
 
 if (RANDOM_QUESTIONS) {
-const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+const shuffled = shuffleArray(allQuestions);
 questions = shuffled.slice(0, selectCount);
 } else {
 questions = allQuestions.slice(0, selectCount);
