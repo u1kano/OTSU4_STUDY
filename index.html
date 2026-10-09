@@ -79,7 +79,8 @@
 <h2 class="text-xl font-bold text-slate-800 mb-2">試験結果</h2>
 <div class="text-4xl font-extrabold text-indigo-600 mb-2" id="score-display">0 / 0</div>
 <p class="text-sm text-slate-600 mb-6" id="pass-fail-text">合格基準: 60%以上</p>
-<button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">もう一度挑戦する</button>
+<button onclick="retrySameQuestions()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-emerald-700 transition mb-3">同じ問題に挑戦する</button>
+<button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">出題範囲選択画面に戻る</button>
 </div>
 <div class="mt-6 border-t pt-4">
 <h3 class="font-bold text-slate-800 mb-3">解答と解説</h3>
@@ -386,6 +387,20 @@ if (!btn) return;
 const show = window.scrollY > 300;
 btn.style.display = show ? 'flex' : 'none';
 });
+
+// 同じ問題（同じ出題内容・同じ順序）でもう一度やり直す
+function retrySameQuestions() {
+if (questions.length === 0) return;
+currentIdx = 0;
+userAnswers = new Array(questions.length).fill(null);
+
+document.getElementById('result-screen').classList.add('hidden');
+document.getElementById('quiz-screen').classList.remove('hidden');
+document.getElementById('footer-nav').classList.remove('hidden');
+
+renderQuestion();
+window.scrollTo({ top: 0 });
+}
 
 function restartQuiz() {
 document.getElementById('result-screen').classList.add('hidden');
