@@ -65,6 +65,10 @@
 <div class="mb-4">
 <span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="question-tag">-</span>
 <h2 class="text-base font-semibold mt-2 text-slate-900 leading-relaxed whitespace-pre-wrap" id="question-text">データを読み込んでいます...</h2>
+<!-- 問題画像（JSONに image がある問題のみ表示） -->
+<div id="question-image-wrap" class="hidden mt-3">
+<img id="question-image" src="" alt="問題の図" class="w-full h-auto rounded-lg border border-slate-200" onerror="this.parentElement.classList.add('hidden')">
+</div>
 </div>
 <div class="space-y-3" id="options-container"></div>
 </div>
@@ -207,6 +211,17 @@ document.getElementById('progress-info').innerText = `問題 ${currentIdx + 1} /
 document.getElementById('question-tag').innerText = q.tag;
 document.getElementById('question-text').innerText = q.question;
 
+// 問題画像の表示切り替え
+const imgWrap = document.getElementById('question-image-wrap');
+const imgEl = document.getElementById('question-image');
+if (q.image) {
+imgEl.src = q.image;
+imgWrap.classList.remove('hidden');
+} else {
+imgEl.removeAttribute('src');
+imgWrap.classList.add('hidden');
+}
+
 const container = document.getElementById('options-container');
 container.innerHTML = '';
 
@@ -347,6 +362,7 @@ card.innerHTML = `
 <span class="text-xs font-bold ${isCorrect ? 'text-emerald-600' : 'text-rose-600'}">${isCorrect ? '正解' : '不正解'}</span>
 </div>
 <p class="text-sm font-semibold text-slate-800 mb-2 whitespace-pre-wrap">${q.question}</p>
+${q.image ? `<img src="${q.image}" alt="問題の図" class="w-full h-auto rounded-lg border border-slate-200 mb-2" onerror="this.style.display='none'">` : ''}
 <ul class="mb-3 space-y-1">${optionsHtml}</ul>
 <div class="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
 <span class="font-bold text-slate-700">解説:</span> ${q.explanation}
