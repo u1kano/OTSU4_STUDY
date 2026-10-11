@@ -315,6 +315,7 @@ function nextQuestion() {
 if (currentIdx < questions.length - 1) {
 currentIdx++;
 renderQuestion();
+window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
 }
 }
 
@@ -322,6 +323,7 @@ function prevQuestion() {
 if (currentIdx > 0) {
 currentIdx--;
 renderQuestion();
+window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
 }
 }
 
