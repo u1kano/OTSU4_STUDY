@@ -349,7 +349,7 @@ document.getElementById('result-screen').classList.remove('hidden');
 document.getElementById('score-display').innerText = `${score} / ${questions.length}`;
 const percentage = Math.round((score / questions.length) * 100);
 document.getElementById('pass-fail-text').innerText = percentage >= 60
-? `正答率: ${percentage}% - 合格ライン（60%）クリアです！おめでとうございます！`
+? `正答率: ${percentage}% - 合格ライン（60%）クリアです！`
 : `正答率: ${percentage}% - 合格ライン（60%）までもう少しです！復習して再挑戦しましょう。`;
 
 // 詳細な解説・解答一覧の構築
