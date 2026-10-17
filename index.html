@@ -55,6 +55,7 @@
 <option value="40">40問</option>
 <option value="45">45問</option>
 <option value="50">50問</option>
+<option value="all">すべて</option>
 </select>
 </div>
 <button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
@@ -65,6 +66,10 @@
 <div class="mb-4">
 <span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="question-tag">-</span>
 <h2 class="text-base font-semibold mt-2 text-slate-900 leading-relaxed whitespace-pre-wrap" id="question-text">データを読み込んでいます...</h2>
+<!-- 問題画像（JSONに image がある問題のみ表示） -->
+<div id="question-image-wrap" class="hidden mt-3">
+<img id="question-image" src="" alt="問題の図" class="w-full h-auto rounded-lg border border-slate-200" onerror="this.parentElement.classList.add('hidden')">
+</div>
 </div>
 <div class="space-y-3" id="options-container"></div>
 </div>
@@ -75,11 +80,19 @@
 <h2 class="text-xl font-bold text-slate-800 mb-2">試験結果</h2>
 <div class="text-4xl font-extrabold text-indigo-600 mb-2" id="score-display">0 / 0</div>
 <p class="text-sm text-slate-600 mb-6" id="pass-fail-text">合格基準: 60%以上</p>
-<button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">もう一度挑戦する</button>
+<button onclick="retrySameQuestions()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-emerald-700 transition mb-3">同じ問題に挑戦する</button>
+<button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">出題範囲選択画面に戻る</button>
 </div>
 <div class="mt-6 border-t pt-4">
 <h3 class="font-bold text-slate-800 mb-3">解答と解説</h3>
 <div id="review-container" class="space-y-4"></div>
+</div>
+
+<!-- 先頭へスクロールするボタン（結果画面のみ・少しスクロールすると表示） -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 w-full max-w-md px-4 flex justify-end pointer-events-none">
+<button id="scroll-top-btn" type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" aria-label="一番上へ戻る" style="display:none" class="pointer-events-auto bg-indigo-600 text-white w-12 h-12 rounded-full shadow-lg active:bg-indigo-700 transition items-center justify-center">
+<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+</button>
 </div>
 </div>
 </main>
@@ -120,7 +133,7 @@ const randomSelect = document.getElementById('random-select');
 RANDOM_QUESTIONS = randomSelect ? randomSelect.value === 'true' : true;
 
 const countSelect = document.getElementById('count-select');
-QUESTION_COUNT = countSelect ? parseInt(countSelect.value, 10) : 10;
+QUESTION_COUNT = countSelect ? (countSelect.value === 'all' ? Infinity : parseInt(countSelect.value, 10)) : 10;
 
 document.getElementById('category-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
@@ -162,12 +175,22 @@ console.error(error);
 }
 }
 
+// Fisher-Yates シャッフル（偏りなく並べ替える。元の配列は変更しない）
+function shuffleArray(arr) {
+const a = [...arr];
+for (let i = a.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[a[i], a[j]] = [a[j], a[i]];
+}
+return a;
+}
+
 // クイズを開始
 function startQuiz() {
 const selectCount = Math.min(QUESTION_COUNT, allQuestions.length);
 
 if (RANDOM_QUESTIONS) {
-const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+const shuffled = shuffleArray(allQuestions);
 questions = shuffled.slice(0, selectCount);
 } else {
 questions = allQuestions.slice(0, selectCount);
@@ -206,6 +229,17 @@ const q = questions[currentIdx];
 document.getElementById('progress-info').innerText = `問題 ${currentIdx + 1} / ${questions.length}`;
 document.getElementById('question-tag').innerText = q.tag;
 document.getElementById('question-text').innerText = q.question;
+
+// 問題画像の表示切り替え
+const imgWrap = document.getElementById('question-image-wrap');
+const imgEl = document.getElementById('question-image');
+if (q.image) {
+imgEl.src = q.image;
+imgWrap.classList.remove('hidden');
+} else {
+imgEl.removeAttribute('src');
+imgWrap.classList.add('hidden');
+}
 
 const container = document.getElementById('options-container');
 container.innerHTML = '';
@@ -282,6 +316,7 @@ function nextQuestion() {
 if (currentIdx < questions.length - 1) {
 currentIdx++;
 renderQuestion();
+window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
 }
 }
 
@@ -289,6 +324,7 @@ function prevQuestion() {
 if (currentIdx > 0) {
 currentIdx--;
 renderQuestion();
+window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
 }
 }
 
@@ -314,7 +350,7 @@ document.getElementById('result-screen').classList.remove('hidden');
 document.getElementById('score-display').innerText = `${score} / ${questions.length}`;
 const percentage = Math.round((score / questions.length) * 100);
 document.getElementById('pass-fail-text').innerText = percentage >= 60
-? `正答率: ${percentage}% - 合格ライン（60%）クリアです！おめでとうございます！`
+? `正答率: ${percentage}% - 合格ライン（60%）クリアです！`
 : `正答率: ${percentage}% - 合格ライン（60%）までもう少しです！復習して再挑戦しましょう。`;
 
 // 詳細な解説・解答一覧の構築
@@ -347,6 +383,7 @@ card.innerHTML = `
 <span class="text-xs font-bold ${isCorrect ? 'text-emerald-600' : 'text-rose-600'}">${isCorrect ? '正解' : '不正解'}</span>
 </div>
 <p class="text-sm font-semibold text-slate-800 mb-2 whitespace-pre-wrap">${q.question}</p>
+${q.image ? `<img src="${q.image}" alt="問題の図" class="w-full h-auto rounded-lg border border-slate-200 mb-2" onerror="this.style.display='none'">` : ''}
 <ul class="mb-3 space-y-1">${optionsHtml}</ul>
 <div class="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
 <span class="font-bold text-slate-700">解説:</span> ${q.explanation}
@@ -354,6 +391,28 @@ card.innerHTML = `
 `;
 reviewContainer.appendChild(card);
 });
+}
+
+// 先頭へ戻るボタン：300px以上スクロールしたら表示
+window.addEventListener('scroll', () => {
+const btn = document.getElementById('scroll-top-btn');
+if (!btn) return;
+const show = window.scrollY > 300;
+btn.style.display = show ? 'flex' : 'none';
+});
+
+// 同じ問題（同じ出題内容・同じ順序）でもう一度やり直す
+function retrySameQuestions() {
+if (questions.length === 0) return;
+currentIdx = 0;
+userAnswers = new Array(questions.length).fill(null);
+
+document.getElementById('result-screen').classList.add('hidden');
+document.getElementById('quiz-screen').classList.remove('hidden');
+document.getElementById('footer-nav').classList.remove('hidden');
+
+renderQuestion();
+window.scrollTo({ top: 0 });
 }
 
 function restartQuiz() {
