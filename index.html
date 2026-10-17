@@ -55,6 +55,7 @@
 <option value="40">40問</option>
 <option value="45">45問</option>
 <option value="50">50問</option>
+<option value="all">すべて</option>
 </select>
 </div>
 <button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
@@ -132,7 +133,7 @@ const randomSelect = document.getElementById('random-select');
 RANDOM_QUESTIONS = randomSelect ? randomSelect.value === 'true' : true;
 
 const countSelect = document.getElementById('count-select');
-QUESTION_COUNT = countSelect ? parseInt(countSelect.value, 10) : 10;
+QUESTION_COUNT = countSelect ? (countSelect.value === 'all' ? Infinity : parseInt(countSelect.value, 10)) : 10;
 
 document.getElementById('category-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
