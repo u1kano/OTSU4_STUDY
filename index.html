@@ -311,13 +311,13 @@ if (isRevealed) {
 const userAns = userAnswers[currentIdx];
 const unanswered = userAns === null || userAns === undefined || (Array.isArray(userAns) && userAns.length === 0);
 const isCorrect = checkIsCorrect(userAns, q.correct);
-let bannerText = '不正解です';
+let bannerText = '不正解';
 let bannerClass = 'text-rose-700 bg-rose-50 border-rose-200';
 if (unanswered) {
-bannerText = '未回答です';
+bannerText = '未回答';
 bannerClass = 'text-slate-700 bg-slate-100 border-slate-200';
 } else if (isCorrect) {
-bannerText = '正解です！';
+bannerText = '正解！';
 bannerClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
 }
 feedback.innerHTML = `
@@ -421,8 +421,8 @@ document.getElementById('result-screen').classList.remove('hidden');
 document.getElementById('score-display').innerText = `${score} / ${questions.length}`;
 const percentage = Math.round((score / questions.length) * 100);
 document.getElementById('pass-fail-text').innerText = percentage >= 60
-? `正答率: ${percentage}% - 合格ライン（60%）クリアです！`
-: `正答率: ${percentage}% - 合格ライン（60%）までもう少しです！復習して再挑戦しましょう。`;
+? `正答率: ${percentage}% - 合格ライン（60%）クリア！`
+: `正答率: ${percentage}% - 合格ライン（60%）までもう少し！復習して再挑戦しましょう。`;
 
 // 詳細な解説・解答一覧の構築
 const reviewContainer = document.getElementById('review-container');
