@@ -50,6 +50,14 @@
 <option value="all">すべて</option>
 </select>
 </div>
+<hr class="my-5 border-slate-200">
+<div class="mb-2">
+<label for="check-select" class="block text-sm font-semibold text-slate-700 mb-2">正解確認</label>
+<select id="check-select" class="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-700 focus:ring-indigo-500 focus:border-indigo-500">
+<option value="batch" selected>まとめて確認</option>
+<option value="each">１問ずつ確認</option>
+</select>
+</div>
 <button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
 </div>
 
@@ -64,6 +72,8 @@
 </div>
 </div>
 <div class="space-y-3" id="options-container"></div>
+<!-- 1問ずつ確認モード：回答・正解・解説の表示領域 -->
+<div id="feedback-container" class="mt-4"></div>
 </div>
 
 <!-- Result Screen -->
@@ -93,7 +103,7 @@
 <footer class="p-4 bg-white border-t border-slate-100 sticky bottom-0 hidden" id="footer-nav">
 <div class="flex gap-3">
 <button id="prev-btn" onclick="prevQuestion()" class="flex-1 bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl active:bg-slate-300 transition disabled:opacity-50">前へ</button>
-<button id="next-btn" onclick="nextQuestion()" class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl active:bg-indigo-700 transition">次へ</button>
+<button id="next-btn" onclick="onNextClick()" class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl active:bg-indigo-700 transition">次へ</button>
 </div>
 </footer>
 </div>
@@ -109,12 +119,18 @@ const RANDOM_QUESTIONS = true;
 
 // 出題数（カテゴリ選択画面のプルダウンで変更される）
 let QUESTION_COUNT = 10;
+
+// 正解確認のタイミング（カテゴリ選択画面のプルダウンで変更される）
+// false : まとめて確認（最後の結果画面で一括表示）
+// true  : 1問ずつ確認（「次へ」を押すと回答と正解を表示し、もう一度押すと次の問題へ）
+let CHECK_EACH = false;
 // ==========================================
 
 let allQuestions = []; // JSONから読み込んだ全問題
 let questions = [];    // 今回出題する問題
 let currentIdx = 0;
 let userAnswers = [];
+let revealed = [];     // 1問ずつ確認モードで、その問題の正解を表示済みかどうか
 
 // カテゴリ選択画面で「試験を開始する」が押されたときの処理
 function startWithSelectedCategory() {
@@ -123,6 +139,9 @@ const fileName = selected ? selected.value : 'questions.json';
 
 const countSelect = document.getElementById('count-select');
 QUESTION_COUNT = countSelect ? (countSelect.value === 'all' ? Infinity : parseInt(countSelect.value, 10)) : 10;
+
+const checkSelect = document.getElementById('check-select');
+CHECK_EACH = checkSelect ? checkSelect.value === 'each' : false;
 
 document.getElementById('category-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
@@ -189,6 +208,7 @@ currentIdx = 0;
 // 各問題の正解が単一か複数かに関わらず、回答保持用配列を初期化
 // 正解が配列形式（複数）の場合は複数選択（配列）として扱えるように準備
 userAnswers = new Array(questions.length).fill(null);
+revealed = new Array(questions.length).fill(false);
 renderQuestion();
 }
 
@@ -237,6 +257,8 @@ container.innerHTML = '';
 // 正解が1つの場合は従来通りラジオボタンによる単一選択にする
 const correctArr = getCorrectArray(q.correct);
 const isMultiple = correctArr.length > 1;
+// 1問ずつ確認モードで、この問題の正解を表示中か
+const isRevealed = CHECK_EACH && revealed[currentIdx];
 
 q.options.forEach((opt, idx) => {
 const userAns = userAnswers[currentIdx];
@@ -248,7 +270,24 @@ isChecked = userAns === idx;
 }
 
 const div = document.createElement('label');
+let badge = '';
+if (isRevealed) {
+// 正解表示中：正解の選択肢は緑、誤って選んだ選択肢は赤で表示し、選択は変更不可にする
+const isOptCorrect = correctArr.includes(idx);
+let stateClass = 'border-slate-200';
+if (isOptCorrect) {
+stateClass = 'border-emerald-500 bg-emerald-50';
+badge += '<span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded ml-2">正解</span>';
+} else if (isChecked) {
+stateClass = 'border-rose-500 bg-rose-50';
+}
+if (isChecked) {
+badge += `<span class="text-xs ${isOptCorrect ? 'bg-indigo-600' : 'bg-rose-600'} text-white px-2 py-0.5 rounded ml-2">あなたの回答</span>`;
+}
+div.className = `flex items-start p-3 border rounded-xl cursor-default transition ${stateClass}`;
+} else {
 div.className = `flex items-start p-3 border rounded-xl cursor-pointer transition ${isChecked ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'}`;
+}
 
 // 正解が複数ある問題（isMultiple === true）はチェックボックスで表示し、複数選択を可能にする。
 // 正解が1つだけの問題は従来通りラジオボタンで単一選択のままにする。
@@ -259,24 +298,67 @@ const inputClass = isMultiple
 : 'mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500';
 
 div.innerHTML = `
-<input type="${inputType}" name="${inputName}" value="${idx}" ${isChecked ? 'checked' : ''} onclick="selectOption(${idx})" class="${inputClass}">
-<span class="ml-3 text-sm text-slate-700 leading-snug whitespace-pre-wrap">${opt}</span>
+<input type="${inputType}" name="${inputName}" value="${idx}" ${isChecked ? 'checked' : ''} ${isRevealed ? 'disabled' : ''} onclick="selectOption(${idx})" class="${inputClass}">
+<span class="ml-3 text-sm text-slate-700 leading-snug whitespace-pre-wrap">${opt}${badge}</span>
 `;
 container.appendChild(div);
 });
 
+// 1問ずつ確認モード：回答の正誤と解説を表示
+const feedback = document.getElementById('feedback-container');
+feedback.innerHTML = '';
+if (isRevealed) {
+const userAns = userAnswers[currentIdx];
+const unanswered = userAns === null || userAns === undefined || (Array.isArray(userAns) && userAns.length === 0);
+const isCorrect = checkIsCorrect(userAns, q.correct);
+let bannerText = '不正解です';
+let bannerClass = 'text-rose-700 bg-rose-50 border-rose-200';
+if (unanswered) {
+bannerText = '未回答です';
+bannerClass = 'text-slate-700 bg-slate-100 border-slate-200';
+} else if (isCorrect) {
+bannerText = '正解です！';
+bannerClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+}
+feedback.innerHTML = `
+<div id="feedback-banner" class="text-sm font-bold text-center py-2 rounded-xl border ${bannerClass}">${bannerText}</div>
+<div class="mt-3 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+<span class="font-bold text-slate-700">解説:</span> ${q.explanation}
+</div>
+`;
+}
+
 document.getElementById('prev-btn').disabled = currentIdx === 0;
 const nextBtn = document.getElementById('next-btn');
-if (currentIdx === questions.length - 1) {
+// 最後の問題のボタン文言：まとめて確認なら常に「結果を確認する」。
+// 1問ずつ確認なら、正解表示前は「次へ」、表示後に「結果を確認する」
+const isLast = currentIdx === questions.length - 1;
+if (isLast && (!CHECK_EACH || revealed[currentIdx])) {
 nextBtn.innerText = "結果を確認する";
-nextBtn.onclick = submitQuiz;
 } else {
 nextBtn.innerText = "次へ";
-nextBtn.onclick = nextQuestion;
+}
+}
+
+// 「次へ」ボタン押下時の処理
+function onNextClick() {
+if (CHECK_EACH && !revealed[currentIdx]) {
+// 1問ずつ確認モードで正解未表示：回答と正解を表示する（まだ次の問題へは進まない）
+revealed[currentIdx] = true;
+renderQuestion();
+const banner = document.getElementById('feedback-banner');
+if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+return;
+}
+if (currentIdx < questions.length - 1) {
+nextQuestion();
+} else {
+submitQuiz();
 }
 }
 
 function selectOption(idx) {
+if (CHECK_EACH && revealed[currentIdx]) return; // 正解表示後は回答を変更できない
 const q = questions[currentIdx];
 const correctArr = getCorrectArray(q.correct);
 const isMultiple = correctArr.length > 1;
@@ -395,6 +477,7 @@ function retrySameQuestions() {
 if (questions.length === 0) return;
 currentIdx = 0;
 userAnswers = new Array(questions.length).fill(null);
+revealed = new Array(questions.length).fill(false);
 
 document.getElementById('result-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
