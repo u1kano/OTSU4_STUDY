@@ -54,8 +54,8 @@
 <div class="mb-2">
 <label for="check-select" class="block text-sm font-semibold text-slate-700 mb-2">正解確認</label>
 <select id="check-select" class="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-700 focus:ring-indigo-500 focus:border-indigo-500">
-<option value="batch" selected>まとめて確認</option>
-<option value="each">１問ずつ確認</option>
+<option value="batch">まとめて確認</option>
+<option value="each" selected>１問ずつ確認</option>
 </select>
 </div>
 <button onclick="startWithSelectedCategory()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">試験を開始する</button>
@@ -123,7 +123,7 @@ let QUESTION_COUNT = 10;
 // 正解確認のタイミング（カテゴリ選択画面のプルダウンで変更される）
 // false : まとめて確認（最後の結果画面で一括表示）
 // true  : 1問ずつ確認（「次へ」を押すと回答と正解を表示し、もう一度押すと次の問題へ）
-let CHECK_EACH = false;
+let CHECK_EACH = true;
 // ==========================================
 
 let allQuestions = []; // JSONから読み込んだ全問題
@@ -141,7 +141,7 @@ const countSelect = document.getElementById('count-select');
 QUESTION_COUNT = countSelect ? (countSelect.value === 'all' ? Infinity : parseInt(countSelect.value, 10)) : 10;
 
 const checkSelect = document.getElementById('check-select');
-CHECK_EACH = checkSelect ? checkSelect.value === 'each' : false;
+CHECK_EACH = checkSelect ? checkSelect.value === 'each' : true;
 
 document.getElementById('category-screen').classList.add('hidden');
 document.getElementById('quiz-screen').classList.remove('hidden');
