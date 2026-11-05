@@ -116,6 +116,20 @@
 
 <script>
 // ==========================================
+// 型定義（JSDoc）
+// ==========================================
+/**
+ * @typedef {Object} Question
+ * @property {string} tag
+ * @property {string} question
+ * @property {string[]} options
+ * @property {number | number[]} correct  正解の選択肢インデックス（複数正解は配列）
+ * @property {string} explanation
+ * @property {string} [image]
+ */
+/** @typedef {number | number[] | null} UserAnswer  単一選択: number / 複数選択: number[] / 未回答: null */
+
+// ==========================================
 // 設定定数
 // ==========================================
 // true  : 問題をランダムに抽出する（シャッフルする）
@@ -123,108 +137,46 @@
 // ※画面からの切り替えは廃止。デバッグ用に定数として残している
 const RANDOM_QUESTIONS = true;
 
-// 出題数（カテゴリ選択画面のプルダウンで変更される）
-let QUESTION_COUNT = 10;
+const DEFAULT_QUESTION_FILE = 'questions.json';
+const DEFAULT_QUESTION_COUNT = 10;
+const RANGE_SIZE = 100;                     // 出題箇所の刻み幅
+const PASS_THRESHOLD_PERCENT = 60;          // 合格ライン（%）
+const SCROLL_TOP_BUTTON_THRESHOLD_PX = 300; // 先頭へ戻るボタンを表示するスクロール量
 
-// 正解確認のタイミング（カテゴリ選択画面のプルダウンで変更される）
-// false : まとめて確認（最後の結果画面で一括表示）
-// true  : 1問ずつ確認（「次へ」を押すと回答と正解を表示し、もう一度押すと次の問題へ）
-let CHECK_EACH = true;
+// プルダウンの値
+const VALUE_ALL = 'all';
+const CHECK_MODE_EACH = 'each';
 
-// 出題箇所（JSONの何番目から何番目までを出題対象にするか。0始まり、endは含まない）
-const RANGE_SIZE = 100;     // 出題箇所の刻み幅
-let RANGE_START = 0;
-let RANGE_END = Infinity;
+// 画面の見た目（Tailwindクラス）
+const CATEGORY_LABEL_CLASS_SELECTED = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-indigo-600 bg-indigo-50/50';
+const CATEGORY_LABEL_CLASS_DEFAULT = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50';
+
+// 画面から変更される設定（カテゴリ選択画面のプルダウンで決まる）
+const settings = {
+questionCount: DEFAULT_QUESTION_COUNT, // 出題数（Infinity = すべて）
+checkEach: true,                       // true: 1問ずつ確認 / false: まとめて確認（最後の結果画面で一括表示）
+rangeStart: 0,                         // 出題箇所の開始位置（0始まり）
+rangeEnd: Infinity                     // 出題箇所の終了位置（この位置は含まない）
+};
 // ==========================================
 
-let allQuestions = []; // JSONから読み込んだ全問題
-let questions = [];    // 今回出題する問題
+/** @type {Question[]} JSONから読み込んだ全問題 */
+let allQuestions = [];
+/** @type {Question[]} 今回出題する問題 */
+let questions = [];
 let currentIdx = 0;
+/** @type {UserAnswer[]} */
 let userAnswers = [];
-let revealed = [];     // 1問ずつ確認モードで、その問題の正解を表示済みかどうか
+/** @type {boolean[]} 1問ずつ確認モードで、その問題の正解を表示済みかどうか */
+let revealed = [];
 
-// カテゴリ選択画面で「試験を開始する」が押されたときの処理
-function startWithSelectedCategory() {
-const selected = document.querySelector('input[name="category"]:checked');
-const fileName = selected ? selected.value : 'questions.json';
+// ==========================================
+// 共通ユーティリティ
+// ==========================================
+const $ = (id) => document.getElementById(id);
 
-const countSelect = document.getElementById('count-select');
-QUESTION_COUNT = countSelect ? (countSelect.value === 'all' ? Infinity : parseInt(countSelect.value, 10)) : 10;
-
-const checkSelect = document.getElementById('check-select');
-CHECK_EACH = checkSelect ? checkSelect.value === 'each' : true;
-
-const rangeSelect = document.getElementById('range-select');
-if (rangeSelect && rangeSelect.value !== 'all') {
-const [a, b] = rangeSelect.value.split('-').map(Number);
-RANGE_START = a - 1;
-RANGE_END = b;
-} else {
-RANGE_START = 0;
-RANGE_END = Infinity;
-}
-
-document.getElementById('category-screen').classList.add('hidden');
-document.getElementById('quiz-screen').classList.remove('hidden');
-document.getElementById('footer-nav').classList.remove('hidden');
-document.getElementById('question-text').innerText = "データを読み込んでいます...";
-document.getElementById('progress-info').innerText = "読み込み中...";
-
-loadQuestions(fileName);
-}
-
-// カテゴリ選択画面のラジオボタンの見た目を選択状態に応じて更新
-function updateCategoryHighlight() {
-updateRangeOptions();
-document.querySelectorAll('#category-options label').forEach(label => {
-const input = label.querySelector('input[type="radio"]');
-if (input.checked) {
-label.className = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-indigo-600 bg-indigo-50/50';
-} else {
-label.className = 'flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50';
-}
-});
-}
-
-// 選択中のカテゴリの問題数に応じて「出題箇所」の選択肢を作る（100問刻み）
-async function updateRangeOptions() {
-const sel = document.getElementById('range-select');
-const selected = document.querySelector('input[name="category"]:checked');
-if (!sel || !selected) return;
-sel.innerHTML = '<option value="all">すべて</option>';
-try {
-const res = await fetch(selected.value);
-if (!res.ok) return;
-const data = await res.json();
-const total = data.length;
-if (total <= RANGE_SIZE) return;
-sel.innerHTML = `<option value="all">すべて（1〜${total}番）</option>`;
-for (let start = 1; start <= total; start += RANGE_SIZE) {
-const end = Math.min(start + RANGE_SIZE - 1, total);
-sel.insertAdjacentHTML('beforeend', `<option value="${start}-${end}">${start}〜${end}番</option>`);
-}
-} catch (e) {
-console.error(e);
-}
-}
-
-// 外部のJSONファイルから問題を読み込む（引数で読み込むファイルを指定）
-async function loadQuestions(fileName) {
-try {
-const response = await fetch(fileName);
-if (!response.ok) throw new Error('Network response was not ok');
-allQuestions = await response.json();
-
-if (allQuestions.length === 0) {
-throw new Error('問題データが空です');
-}
-
-startQuiz();
-} catch (error) {
-document.getElementById('question-text').innerText = "問題データの読み込みに失敗しました。\n(※ローカル環境で開く場合は簡易サーバー等をご利用ください)";
-document.getElementById('progress-info').innerText = "エラー";
-console.error(error);
-}
+function setHidden(id, hidden) {
+$(id).classList.toggle('hidden', hidden);
 }
 
 // Fisher-Yates シャッフル（偏りなく並べ替える。元の配列は変更しない）
@@ -237,30 +189,24 @@ const j = Math.floor(Math.random() * (i + 1));
 return a;
 }
 
-// クイズを開始
-function startQuiz() {
-// 出題箇所（範囲）で対象の問題を絞り込む
-const pool = allQuestions.slice(RANGE_START, RANGE_END);
-const selectCount = Math.min(QUESTION_COUNT, pool.length);
-
-if (RANDOM_QUESTIONS) {
-const shuffled = shuffleArray(pool);
-questions = shuffled.slice(0, selectCount);
-} else {
-questions = pool.slice(0, selectCount);
-}
-
-currentIdx = 0;
-// 各問題の正解が単一か複数かに関わらず、回答保持用配列を初期化
-// 正解が配列形式（複数）の場合は複数選択（配列）として扱えるように準備
-userAnswers = new Array(questions.length).fill(null);
-revealed = new Array(questions.length).fill(false);
-renderQuestion();
-}
-
 // 共通：正解データを必ず配列の形（例: [1] や [1, 5]）に正規化するヘルパー関数
 function getCorrectArray(correct) {
 return Array.isArray(correct) ? correct : [correct];
+}
+
+// 正解が複数（correctが配列で要素数2以上）の問題か
+function isMultipleChoice(q) {
+return getCorrectArray(q.correct).length > 1;
+}
+
+// 未回答か（未選択、または複数選択で1つも選んでいない）
+function isUnanswered(userAns) {
+return userAns === null || userAns === undefined || (Array.isArray(userAns) && userAns.length === 0);
+}
+
+// 選択肢 idx がユーザーに選択されているか
+function isOptionSelected(userAns, idx) {
+return Array.isArray(userAns) ? userAns.includes(idx) : userAns === idx;
 }
 
 // ユーザーの回答が正解と一致しているかを判定する関数
@@ -278,29 +224,180 @@ return correctArr.length === 1 && correctArr[0] === userAns;
 }
 }
 
+// 回答状況の集計。revealedOnly が true なら正解表示済みの問題だけを対象にする
+function calcAnswerStats(revealedOnly) {
+let answered = 0;
+let correct = 0;
+questions.forEach((q, i) => {
+if (revealedOnly && !revealed[i]) return;
+answered++;
+if (checkIsCorrect(userAnswers[i], q.correct)) correct++;
+});
+return { answered, correct };
+}
+
+// 進行状況（現在位置・回答・正解表示）を初期状態に戻す
+function resetProgress() {
+currentIdx = 0;
+userAnswers = new Array(questions.length).fill(null);
+revealed = new Array(questions.length).fill(false);
+}
+
+function createBadgeHtml(text, bgClass) {
+return `<span class="text-xs ${bgClass} text-white px-2 py-0.5 rounded ml-2">${text}</span>`;
+}
+
+// ==========================================
+// カテゴリ選択画面
+// ==========================================
+function parseQuestionCount(value) {
+return value === VALUE_ALL ? Infinity : parseInt(value, 10);
+}
+
+// 出題箇所の値（"101-200" など）を 0始まりの範囲に変換する
+function parseRangeValue(value) {
+if (value === VALUE_ALL) return { start: 0, end: Infinity };
+const [first, last] = value.split('-').map(Number);
+return { start: first - 1, end: last };
+}
+
+// カテゴリ選択画面のプルダウンの内容を settings に反映する
+function readSettingsFromForm() {
+const countSelect = $('count-select');
+settings.questionCount = countSelect ? parseQuestionCount(countSelect.value) : DEFAULT_QUESTION_COUNT;
+
+const checkSelect = $('check-select');
+settings.checkEach = checkSelect ? checkSelect.value === CHECK_MODE_EACH : true;
+
+const rangeSelect = $('range-select');
+const range = parseRangeValue(rangeSelect ? rangeSelect.value : VALUE_ALL);
+settings.rangeStart = range.start;
+settings.rangeEnd = range.end;
+}
+
+// カテゴリ選択画面で「試験を開始する」が押されたときの処理
+function startWithSelectedCategory() {
+const selected = document.querySelector('input[name="category"]:checked');
+const fileName = selected ? selected.value : DEFAULT_QUESTION_FILE;
+
+readSettingsFromForm();
+
+setHidden('category-screen', true);
+setHidden('quiz-screen', false);
+setHidden('footer-nav', false);
+$('question-text').innerText = "データを読み込んでいます...";
+$('progress-info').innerText = "読み込み中...";
+
+loadQuestions(fileName);
+}
+
+// カテゴリ選択画面のラジオボタンの見た目を選択状態に応じて更新
+function updateCategoryHighlight() {
+updateRangeOptions();
+document.querySelectorAll('#category-options label').forEach(label => {
+const input = label.querySelector('input[type="radio"]');
+label.className = input.checked ? CATEGORY_LABEL_CLASS_SELECTED : CATEGORY_LABEL_CLASS_DEFAULT;
+});
+}
+
+// 「出題箇所」の選択肢のHTMLを作る（RANGE_SIZE問刻み）
+function buildRangeOptionsHtml(total) {
+let html = `<option value="${VALUE_ALL}">すべて（1〜${total}番）</option>`;
+for (let start = 1; start <= total; start += RANGE_SIZE) {
+const end = Math.min(start + RANGE_SIZE - 1, total);
+html += `<option value="${start}-${end}">${start}〜${end}番</option>`;
+}
+return html;
+}
+
+// 選択中のカテゴリの問題数に応じて「出題箇所」の選択肢を作る
+async function updateRangeOptions() {
+const sel = $('range-select');
+const selected = document.querySelector('input[name="category"]:checked');
+if (!sel || !selected) return;
+sel.innerHTML = `<option value="${VALUE_ALL}">すべて</option>`;
+try {
+const total = (await fetchQuestionData(selected.value)).length;
+if (total <= RANGE_SIZE) return;
+sel.innerHTML = buildRangeOptionsHtml(total);
+} catch (e) {
+console.error(e);
+}
+}
+
+// ==========================================
+// 問題の読み込み・開始
+// ==========================================
+// 外部のJSONファイルから問題データを取得する
+async function fetchQuestionData(fileName) {
+const response = await fetch(fileName);
+if (!response.ok) throw new Error('Network response was not ok');
+return response.json();
+}
+
+// 外部のJSONファイルから問題を読み込む（引数で読み込むファイルを指定）
+async function loadQuestions(fileName) {
+try {
+allQuestions = await fetchQuestionData(fileName);
+
+if (allQuestions.length === 0) {
+throw new Error('問題データが空です');
+}
+
+startQuiz();
+} catch (error) {
+$('question-text').innerText = "問題データの読み込みに失敗しました。\n(※ローカル環境で開く場合は簡易サーバー等をご利用ください)";
+$('progress-info').innerText = "エラー";
+console.error(error);
+}
+}
+
+// クイズを開始
+function startQuiz() {
+// 出題箇所（範囲）で対象の問題を絞り込み、出題数だけ取り出す
+const pool = allQuestions.slice(settings.rangeStart, settings.rangeEnd);
+const ordered = RANDOM_QUESTIONS ? shuffleArray(pool) : pool;
+questions = ordered.slice(0, settings.questionCount);
+
+resetProgress();
+renderQuestion();
+}
+
+// ==========================================
+// 問題画面の描画
+// ==========================================
 function renderQuestion() {
 if (questions.length === 0) return;
 const q = questions[currentIdx];
-let progressText = `問題 ${currentIdx + 1} / ${questions.length}`;
-if (CHECK_EACH) {
-// 1問ずつ確認モード：正解を確認済みの問題だけで正解率を集計して表示
-let answered = 0, correctCount = 0;
-questions.forEach((qq, i) => {
-if (revealed[i]) {
-answered++;
-if (checkIsCorrect(userAnswers[i], qq.correct)) correctCount++;
-}
-});
-const rate = answered > 0 ? Math.round(correctCount / answered * 100) + '%' : '-';
-progressText += `　正解率 ${rate}（${correctCount}/${answered}）`;
-}
-document.getElementById('progress-info').innerText = progressText;
-document.getElementById('question-tag').innerText = q.tag;
-document.getElementById('question-text').innerText = q.question;
+// 1問ずつ確認モードで、この問題の正解を表示中か
+const isRevealed = settings.checkEach && revealed[currentIdx];
 
-// 問題画像の表示切り替え
-const imgWrap = document.getElementById('question-image-wrap');
-const imgEl = document.getElementById('question-image');
+renderProgress();
+renderQuestionBody(q);
+renderOptions(q, isRevealed);
+renderFeedback(q, isRevealed);
+renderNavButtons();
+}
+
+// 画面上部の進行状況（問題番号と、1問ずつ確認モードでは正解率）
+function renderProgress() {
+let progressText = `問題 ${currentIdx + 1} / ${questions.length}`;
+if (settings.checkEach) {
+// 正解を確認済みの問題だけで正解率を集計して表示
+const { answered, correct } = calcAnswerStats(true);
+const rate = answered > 0 ? Math.round(correct / answered * 100) + '%' : '-';
+progressText += `　正解率 ${rate}（${correct}/${answered}）`;
+}
+$('progress-info').innerText = progressText;
+}
+
+// 問題文・タグ・画像
+function renderQuestionBody(q) {
+$('question-tag').innerText = q.tag;
+$('question-text').innerText = q.question;
+
+const imgWrap = $('question-image-wrap');
+const imgEl = $('question-image');
 if (q.image) {
 imgEl.src = q.image;
 imgWrap.classList.remove('hidden');
@@ -308,48 +405,51 @@ imgWrap.classList.remove('hidden');
 imgEl.removeAttribute('src');
 imgWrap.classList.add('hidden');
 }
-
-const container = document.getElementById('options-container');
-container.innerHTML = '';
-
-// 正解が複数（correctが配列で要素数2以上）の場合はチェックボックスによる複数選択、
-// 正解が1つの場合は従来通りラジオボタンによる単一選択にする
-const correctArr = getCorrectArray(q.correct);
-const isMultiple = correctArr.length > 1;
-// 1問ずつ確認モードで、この問題の正解を表示中か
-const isRevealed = CHECK_EACH && revealed[currentIdx];
-
-q.options.forEach((opt, idx) => {
-const userAns = userAnswers[currentIdx];
-let isChecked = false;
-if (Array.isArray(userAns)) {
-isChecked = userAns.includes(idx);
-} else {
-isChecked = userAns === idx;
 }
 
-const div = document.createElement('label');
-let badge = '';
-if (isRevealed) {
-// 正解表示中：正解の選択肢は緑、誤って選んだ選択肢は赤で表示し、選択は変更不可にする
-const isOptCorrect = correctArr.includes(idx);
+// 正解表示中の選択肢の見た目：正解は緑、誤って選んだ選択肢は赤
+function buildRevealedOptionStyle(isOptCorrect, isChecked) {
 let stateClass = 'border-slate-200';
+let badge = '';
 if (isOptCorrect) {
 stateClass = 'border-emerald-500 bg-emerald-50';
-badge += '<span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded ml-2">正解</span>';
+badge += createBadgeHtml('正解', 'bg-emerald-600');
 } else if (isChecked) {
 stateClass = 'border-rose-500 bg-rose-50';
 }
 if (isChecked) {
-badge += `<span class="text-xs ${isOptCorrect ? 'bg-indigo-600' : 'bg-rose-600'} text-white px-2 py-0.5 rounded ml-2">あなたの回答</span>`;
+badge += createBadgeHtml('あなたの回答', isOptCorrect ? 'bg-indigo-600' : 'bg-rose-600');
 }
-div.className = `flex items-start p-3 border rounded-xl cursor-default transition ${stateClass}`;
-} else {
-div.className = `flex items-start p-3 border rounded-xl cursor-pointer transition ${isChecked ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'}`;
+return {
+className: `flex items-start p-3 border rounded-xl cursor-default transition ${stateClass}`,
+badge
+};
 }
 
-// 正解が複数ある問題（isMultiple === true）はチェックボックスで表示し、複数選択を可能にする。
-// 正解が1つだけの問題は従来通りラジオボタンで単一選択のままにする。
+// 回答中の選択肢の見た目
+function buildSelectableOptionClass(isChecked) {
+return `flex items-start p-3 border rounded-xl cursor-pointer transition ${isChecked ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'}`;
+}
+
+// 選択肢の描画。正解が複数ある問題はチェックボックス（複数選択）、
+// 正解が1つの問題はラジオボタン（単一選択）で表示する
+function renderOptions(q, isRevealed) {
+const container = $('options-container');
+container.innerHTML = '';
+
+const correctArr = getCorrectArray(q.correct);
+const isMultiple = correctArr.length > 1;
+const userAns = userAnswers[currentIdx];
+
+q.options.forEach((opt, idx) => {
+const isChecked = isOptionSelected(userAns, idx);
+const { className, badge } = isRevealed
+? buildRevealedOptionStyle(correctArr.includes(idx), isChecked)
+: { className: buildSelectableOptionClass(isChecked), badge: '' };
+
+const div = document.createElement('label');
+div.className = className;
+
 const inputType = isMultiple ? 'checkbox' : 'radio';
 const inputName = isMultiple ? `option-${currentIdx}-${idx}` : `option-${currentIdx}`;
 const inputClass = isMultiple
@@ -362,50 +462,54 @@ div.innerHTML = `
 `;
 container.appendChild(div);
 });
+}
+
+// 1問ずつ確認モード：回答の正誤バナーの文言と色
+function getFeedbackBanner(userAns, correctDef) {
+if (isUnanswered(userAns)) {
+return { text: '未回答', className: 'text-slate-700 bg-slate-100 border-slate-200' };
+}
+if (checkIsCorrect(userAns, correctDef)) {
+return { text: '正解！', className: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+}
+return { text: '不正解', className: 'text-rose-700 bg-rose-50 border-rose-200' };
+}
 
 // 1問ずつ確認モード：回答の正誤と解説を表示
-const feedback = document.getElementById('feedback-container');
+function renderFeedback(q, isRevealed) {
+const feedback = $('feedback-container');
 feedback.innerHTML = '';
-if (isRevealed) {
-const userAns = userAnswers[currentIdx];
-const unanswered = userAns === null || userAns === undefined || (Array.isArray(userAns) && userAns.length === 0);
-const isCorrect = checkIsCorrect(userAns, q.correct);
-let bannerText = '不正解';
-let bannerClass = 'text-rose-700 bg-rose-50 border-rose-200';
-if (unanswered) {
-bannerText = '未回答';
-bannerClass = 'text-slate-700 bg-slate-100 border-slate-200';
-} else if (isCorrect) {
-bannerText = '正解！';
-bannerClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-}
+if (!isRevealed) return;
+
+const banner = getFeedbackBanner(userAnswers[currentIdx], q.correct);
 feedback.innerHTML = `
-<div id="feedback-banner" class="text-sm font-bold text-center py-2 rounded-xl border ${bannerClass}">${bannerText}</div>
+<div id="feedback-banner" class="text-sm font-bold text-center py-2 rounded-xl border ${banner.className}">${banner.text}</div>
 <div class="mt-3 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
 <span class="font-bold text-slate-700">解説:</span> ${q.explanation}
 </div>
 `;
 }
 
-document.getElementById('prev-btn').disabled = currentIdx === 0;
-const nextBtn = document.getElementById('next-btn');
+// 「前へ」「次へ」ボタンの状態
 // 最後の問題のボタン文言：まとめて確認なら常に「結果を確認する」。
 // 1問ずつ確認なら、正解表示前は「次へ」、表示後に「結果を確認する」
+function renderNavButtons() {
+$('prev-btn').disabled = currentIdx === 0;
 const isLast = currentIdx === questions.length - 1;
-if (isLast && (!CHECK_EACH || revealed[currentIdx])) {
-nextBtn.innerText = "結果を確認する";
-} else {
-nextBtn.innerText = "次へ";
-}
+const showResultLabel = isLast && (!settings.checkEach || revealed[currentIdx]);
+$('next-btn').innerText = showResultLabel ? "結果を確認する" : "次へ";
 }
 
+// ==========================================
+// 操作ハンドラ
+// ==========================================
 // 「次へ」ボタン押下時の処理
 function onNextClick() {
-if (CHECK_EACH && !revealed[currentIdx]) {
+if (settings.checkEach && !revealed[currentIdx]) {
 // 1問ずつ確認モードで正解未表示：回答と正解を表示する（まだ次の問題へは進まない）
 revealed[currentIdx] = true;
 renderQuestion();
-const banner = document.getElementById('feedback-banner');
+const banner = $('feedback-banner');
 if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
 return;
 }
@@ -417,17 +521,12 @@ submitQuiz();
 }
 
 function selectOption(idx) {
-if (CHECK_EACH && revealed[currentIdx]) return; // 正解表示後は回答を変更できない
+if (settings.checkEach && revealed[currentIdx]) return; // 正解表示後は回答を変更できない
 const q = questions[currentIdx];
-const correctArr = getCorrectArray(q.correct);
-const isMultiple = correctArr.length > 1;
 
-if (isMultiple) {
+if (isMultipleChoice(q)) {
 // 複数正解の問題：選択済みなら解除、未選択なら追加するトグル方式（配列で保存）
-let current = userAnswers[currentIdx];
-if (!Array.isArray(current)) {
-current = [];
-}
+const current = Array.isArray(userAnswers[currentIdx]) ? userAnswers[currentIdx] : [];
 const pos = current.indexOf(idx);
 if (pos === -1) {
 current.push(idx);
@@ -442,71 +541,74 @@ userAnswers[currentIdx] = idx;
 renderQuestion();
 }
 
-function nextQuestion() {
-if (currentIdx < questions.length - 1) {
-currentIdx++;
+// 別の問題へ移動する（前の問題のスクロール位置を引き継がない）
+function moveToQuestion(newIdx) {
+currentIdx = newIdx;
 renderQuestion();
-window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
+window.scrollTo({ top: 0 });
 }
+
+function nextQuestion() {
+if (currentIdx < questions.length - 1) moveToQuestion(currentIdx + 1);
 }
 
 function prevQuestion() {
-if (currentIdx > 0) {
-currentIdx--;
-renderQuestion();
-window.scrollTo({ top: 0 }); // 前の問題のスクロール位置を引き継がない
-}
+if (currentIdx > 0) moveToQuestion(currentIdx - 1);
 }
 
+// ==========================================
+// 結果画面
+// ==========================================
 function submitQuiz() {
-const hasUnanswered = userAnswers.some(a => a === null || (Array.isArray(a) && a.length === 0));
-if (hasUnanswered) {
-if (!confirm("未回答の問題がありますが、結果を確認しますか？")) {
+if (userAnswers.some(isUnanswered) && !confirm("未回答の問題がありますが、結果を確認しますか？")) {
 return;
 }
+
+const { correct: score } = calcAnswerStats(false);
+
+setHidden('quiz-screen', true);
+setHidden('footer-nav', true);
+setHidden('result-screen', false);
+
+renderScore(score);
+renderReview();
 }
 
-let score = 0;
-questions.forEach((q, idx) => {
-if (checkIsCorrect(userAnswers[idx], q.correct)) {
-score++;
-}
-});
-
-document.getElementById('quiz-screen').classList.add('hidden');
-document.getElementById('footer-nav').classList.add('hidden');
-document.getElementById('result-screen').classList.remove('hidden');
-
-document.getElementById('score-display').innerText = `${score} / ${questions.length}`;
+function renderScore(score) {
+$('score-display').innerText = `${score} / ${questions.length}`;
 const percentage = Math.round((score / questions.length) * 100);
-document.getElementById('pass-fail-text').innerText = percentage >= 60
-? `正答率: ${percentage}% - 合格ライン（60%）クリア！`
-: `正答率: ${percentage}% - 合格ライン（60%）までもう少し！復習して再挑戦しましょう。`;
+$('pass-fail-text').innerText = percentage >= PASS_THRESHOLD_PERCENT
+? `正答率: ${percentage}% - 合格ライン（${PASS_THRESHOLD_PERCENT}%）クリア！`
+: `正答率: ${percentage}% - 合格ライン（${PASS_THRESHOLD_PERCENT}%）までもう少し！復習して再挑戦しましょう。`;
+}
 
-// 詳細な解説・解答一覧の構築
-const reviewContainer = document.getElementById('review-container');
+// 解答と解説の一覧を構築
+function renderReview() {
+const reviewContainer = $('review-container');
 reviewContainer.innerHTML = '';
+questions.forEach((q, idx) => reviewContainer.appendChild(createReviewCard(q, idx)));
+}
 
-questions.forEach((q, idx) => {
+function buildReviewOptionsHtml(q, userAns, isCorrect) {
+const correctArr = getCorrectArray(q.correct);
+return q.options.map((opt, optIdx) => {
+const isOptCorrect = correctArr.includes(optIdx);
+const isUserOpt = isOptionSelected(userAns, optIdx);
+
+let badge = '';
+if (isOptCorrect) badge += createBadgeHtml('正解', 'bg-emerald-600');
+if (isUserOpt && !isCorrect) badge += createBadgeHtml('あなたの回答', 'bg-rose-600');
+
+return `<li class="text-xs py-1 leading-relaxed ${isOptCorrect ? 'font-bold text-emerald-800' : 'text-slate-600'}">- ${opt} ${badge}</li>`;
+}).join('');
+}
+
+function createReviewCard(q, idx) {
 const userAns = userAnswers[idx];
 const isCorrect = checkIsCorrect(userAns, q.correct);
-const correctArr = getCorrectArray(q.correct);
 
 const card = document.createElement('div');
 card.className = `p-4 rounded-xl border ${isCorrect ? 'border-emerald-200 bg-emerald-50/30' : 'border-rose-200 bg-rose-50/30'}`;
-
-let optionsHtml = '';
-q.options.forEach((opt, optIdx) => {
-const isOptCorrect = correctArr.includes(optIdx);
-const isUserOpt = Array.isArray(userAns) ? userAns.includes(optIdx) : userAns === optIdx;
-
-let badge = '';
-if (isOptCorrect) badge += '<span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded ml-2">正解</span>';
-if (isUserOpt && !isCorrect) badge += '<span class="text-xs bg-rose-600 text-white px-2 py-0.5 rounded ml-2">あなたの回答</span>';
-
-optionsHtml += `<li class="text-xs py-1 leading-relaxed ${isOptCorrect ? 'font-bold text-emerald-800' : 'text-slate-600'}">- ${opt} ${badge}</li>`;
-});
-
 card.innerHTML = `
 <div class="flex items-center justify-between mb-2">
 <span class="text-xs font-bold text-slate-500">問 ${idx + 1}</span>
@@ -514,44 +616,40 @@ card.innerHTML = `
 </div>
 <p class="text-sm font-semibold text-slate-800 mb-2 whitespace-pre-wrap">${q.question}</p>
 ${q.image ? `<img src="${q.image}" alt="問題の図" class="w-full h-auto rounded-lg border border-slate-200 mb-2" onerror="this.style.display='none'">` : ''}
-<ul class="mb-3 space-y-1">${optionsHtml}</ul>
+<ul class="mb-3 space-y-1">${buildReviewOptionsHtml(q, userAns, isCorrect)}</ul>
 <div class="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
 <span class="font-bold text-slate-700">解説:</span> ${q.explanation}
 </div>
 `;
-reviewContainer.appendChild(card);
-});
+return card;
 }
 
-// 先頭へ戻るボタン：300px以上スクロールしたら表示
+// 先頭へ戻るボタン：一定量スクロールしたら表示
 window.addEventListener('scroll', () => {
-const btn = document.getElementById('scroll-top-btn');
+const btn = $('scroll-top-btn');
 if (!btn) return;
-const show = window.scrollY > 300;
-btn.style.display = show ? 'flex' : 'none';
+btn.style.display = window.scrollY > SCROLL_TOP_BUTTON_THRESHOLD_PX ? 'flex' : 'none';
 });
 
 // 同じ問題（同じ出題内容・同じ順序）でもう一度やり直す
 function retrySameQuestions() {
 if (questions.length === 0) return;
-currentIdx = 0;
-userAnswers = new Array(questions.length).fill(null);
-revealed = new Array(questions.length).fill(false);
+resetProgress();
 
-document.getElementById('result-screen').classList.add('hidden');
-document.getElementById('quiz-screen').classList.remove('hidden');
-document.getElementById('footer-nav').classList.remove('hidden');
+setHidden('result-screen', true);
+setHidden('quiz-screen', false);
+setHidden('footer-nav', false);
 
 renderQuestion();
 window.scrollTo({ top: 0 });
 }
 
 function restartQuiz() {
-document.getElementById('result-screen').classList.add('hidden');
-document.getElementById('quiz-screen').classList.add('hidden');
-document.getElementById('footer-nav').classList.add('hidden');
-document.getElementById('category-screen').classList.remove('hidden');
-document.getElementById('progress-info').innerText = "出題範囲を選択してください";
+setHidden('result-screen', true);
+setHidden('quiz-screen', true);
+setHidden('footer-nav', true);
+setHidden('category-screen', false);
+$('progress-info').innerText = "出題範囲を選択してください";
 window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
