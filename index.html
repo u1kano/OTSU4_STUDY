@@ -281,7 +281,20 @@ return correctArr.length === 1 && correctArr[0] === userAns;
 function renderQuestion() {
 if (questions.length === 0) return;
 const q = questions[currentIdx];
-document.getElementById('progress-info').innerText = `問題 ${currentIdx + 1} / ${questions.length}`;
+let progressText = `問題 ${currentIdx + 1} / ${questions.length}`;
+if (CHECK_EACH) {
+// 1問ずつ確認モード：正解を確認済みの問題だけで正解率を集計して表示
+let answered = 0, correctCount = 0;
+questions.forEach((qq, i) => {
+if (revealed[i]) {
+answered++;
+if (checkIsCorrect(userAnswers[i], qq.correct)) correctCount++;
+}
+});
+const rate = answered > 0 ? Math.round(correctCount / answered * 100) + '%' : '-';
+progressText += `　正解率 ${rate}（${correctCount}/${answered}）`;
+}
+document.getElementById('progress-info').innerText = progressText;
 document.getElementById('question-tag').innerText = q.tag;
 document.getElementById('question-text').innerText = q.question;
 
