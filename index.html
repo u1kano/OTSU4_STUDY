@@ -88,6 +88,7 @@
 <h2 class="text-xl font-bold text-slate-800 mb-2">試験結果</h2>
 <div class="text-4xl font-extrabold text-indigo-600 mb-2" id="score-display">0 / 0</div>
 <p class="text-sm text-slate-600 mb-6" id="pass-fail-text">合格基準: 60%以上</p>
+<button id="retry-wrong-btn" onclick="retryWrongQuestions()" class="hidden w-full bg-rose-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-rose-700 transition mb-3">間違えた問題のみ出題する</button>
 <button onclick="retrySameQuestions()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-emerald-700 transition mb-3">同じ問題に挑戦する</button>
 <button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">出題範囲選択画面に戻る</button>
 </div>
@@ -572,6 +573,10 @@ setHidden('result-screen', false);
 
 renderScore(score);
 renderReview();
+
+// 間違えた問題（未回答を含む）が1問でもある場合だけ「間違えた問題のみ出題する」を表示
+$('retry-wrong-btn').classList.toggle('hidden', score === questions.length);
+window.scrollTo({ top: 0 });
 }
 
 function renderScore(score) {
@@ -631,9 +636,8 @@ if (!btn) return;
 btn.style.display = window.scrollY > SCROLL_TOP_BUTTON_THRESHOLD_PX ? 'flex' : 'none';
 });
 
-// 同じ問題（同じ出題内容・同じ順序）でもう一度やり直す
-function retrySameQuestions() {
-if (questions.length === 0) return;
+// 現在の questions で最初から出題し直す（結果画面 → 問題画面）
+function restartWithCurrentQuestions() {
 resetProgress();
 
 setHidden('result-screen', true);
@@ -642,6 +646,20 @@ setHidden('footer-nav', false);
 
 renderQuestion();
 window.scrollTo({ top: 0 });
+}
+
+// 間違えた問題（未回答を含む）だけを、今回の出題順のまま出題し直す
+function retryWrongQuestions() {
+const wrongQuestions = questions.filter((q, i) => !checkIsCorrect(userAnswers[i], q.correct));
+if (wrongQuestions.length === 0) return;
+questions = wrongQuestions;
+restartWithCurrentQuestions();
+}
+
+// 同じ問題（同じ出題内容・同じ順序）でもう一度やり直す
+function retrySameQuestions() {
+if (questions.length === 0) return;
+restartWithCurrentQuestions();
 }
 
 function restartQuiz() {
