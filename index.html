@@ -172,6 +172,79 @@ let userAnswers = [];
 let revealed = [];
 
 // ==========================================
+// 進行状況の保存・復元（スマホでタブが破棄されて再読み込みされても続きから再開するため）
+// ==========================================
+const STATE_STORAGE_KEY = 'otsu4_quiz_state';
+const SCREEN_CATEGORY = 'category';
+const SCREEN_QUIZ = 'quiz';
+const SCREEN_RESULT = 'result';
+/** 現在表示している画面 */
+let activeScreen = SCREEN_CATEGORY;
+
+// 現在の進行状況をブラウザに保存する（出題範囲選択画面のときは保存しない）
+function saveState() {
+if (activeScreen === SCREEN_CATEGORY || questions.length === 0) return;
+try {
+localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify({
+screen: activeScreen,
+questions,
+currentIdx,
+userAnswers,
+revealed,
+checkEach: settings.checkEach
+}));
+} catch (e) {
+console.error(e); // 保存できなくても動作は継続する
+}
+}
+
+function clearSavedState() {
+try {
+localStorage.removeItem(STATE_STORAGE_KEY);
+} catch (e) {
+console.error(e);
+}
+}
+
+// 保存された進行状況があれば復元して、中断した画面を表示する。復元したら true
+function restoreState() {
+try {
+const raw = localStorage.getItem(STATE_STORAGE_KEY);
+if (!raw) return false;
+const s = JSON.parse(raw);
+
+const n = Array.isArray(s.questions) ? s.questions.length : 0;
+const isValid = n > 0
+&& Array.isArray(s.userAnswers) && s.userAnswers.length === n
+&& Array.isArray(s.revealed) && s.revealed.length === n;
+if (!isValid) {
+clearSavedState();
+return false;
+}
+
+questions = s.questions;
+userAnswers = s.userAnswers;
+revealed = s.revealed;
+currentIdx = Math.min(Math.max(Number(s.currentIdx) || 0, 0), n - 1);
+settings.checkEach = !!s.checkEach;
+
+setHidden('category-screen', true);
+if (s.screen === SCREEN_RESULT) {
+showResultScreen();
+} else {
+setHidden('quiz-screen', false);
+setHidden('footer-nav', false);
+renderQuestion();
+}
+return true;
+} catch (e) {
+console.error(e);
+clearSavedState();
+return false;
+}
+}
+
+// ==========================================
 // 共通ユーティリティ
 // ==========================================
 const $ = (id) => document.getElementById(id);
@@ -378,6 +451,10 @@ renderQuestionBody(q);
 renderOptions(q, isRevealed);
 renderFeedback(q, isRevealed);
 renderNavButtons();
+
+// 回答・移動・正解表示のたびに保存する
+activeScreen = SCREEN_QUIZ;
+saveState();
 }
 
 // 画面上部の進行状況（問題番号と、1問ずつ確認モードでは正解率）
@@ -565,6 +642,11 @@ if (userAnswers.some(isUnanswered) && !confirm("未回答の問題がありま�
 return;
 }
 
+showResultScreen();
+}
+
+// 結果画面を表示する（復元時は確認ダイアログなしで直接呼ぶ）
+function showResultScreen() {
 const { correct: score } = calcAnswerStats(false);
 
 setHidden('quiz-screen', true);
@@ -577,6 +659,9 @@ renderReview();
 // 間違えた問題（未回答を含む）が1問でもある場合だけ「間違えた問題のみ出題する」を表示
 $('retry-wrong-btn').classList.toggle('hidden', score === questions.length);
 window.scrollTo({ top: 0 });
+
+activeScreen = SCREEN_RESULT;
+saveState();
 }
 
 function renderScore(score) {
@@ -663,6 +748,8 @@ restartWithCurrentQuestions();
 }
 
 function restartQuiz() {
+activeScreen = SCREEN_CATEGORY;
+clearSavedState(); // 範囲選択に戻ったら、保存した進行状況は破棄する
 setHidden('result-screen', true);
 setHidden('quiz-screen', true);
 setHidden('footer-nav', true);
@@ -675,6 +762,8 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
 // 問題データの読み込みは startWithSelectedCategory() が呼ばれてから行う
 // （出題箇所の選択肢だけ、問題数を調べるために先に読み込む）
 updateRangeOptions();
+// 前回の途中経過が保存されていれば、そこから再開する
+restoreState();
 </script>
 </body>
 </html>
