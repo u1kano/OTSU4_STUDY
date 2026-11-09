@@ -78,6 +78,10 @@
 <div class="space-y-3" id="options-container"></div>
 <!-- 1問ずつ確認モード：回答・正解・解説の表示領域 -->
 <div id="feedback-container" class="mt-4"></div>
+<!-- 利用頻度が低いため目立たないテキストリンクにしている -->
+<div class="mt-10 mb-2 text-center">
+<button onclick="abortQuiz()" class="text-xs text-slate-400 underline">出題を中断して範囲選択に戻る</button>
+</div>
 </div>
 
 <!-- Result Screen -->
@@ -743,6 +747,12 @@ restartWithCurrentQuestions();
 function retrySameQuestions() {
 if (questions.length === 0) return;
 restartWithCurrentQuestions();
+}
+
+// 出題の途中で中断して範囲選択画面に戻る（回答内容は破棄される）
+function abortQuiz() {
+if (!confirm('出題を中断して範囲選択画面に戻りますか？\nここまでの回答内容は破棄されます。')) return;
+restartQuiz();
 }
 
 function restartQuiz() {
