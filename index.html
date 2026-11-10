@@ -67,6 +67,10 @@
 
 <!-- Quiz Screen -->
 <div id="quiz-screen" class="hidden">
+<!-- 利用頻度が低いため目立たないテキストリンクにしている -->
+<div class="mb-2 text-right">
+<button onclick="abortQuiz()" class="text-xs text-slate-400 underline">出題を中断して範囲選択に戻る</button>
+</div>
 <div class="mb-4">
 <span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="question-tag">-</span>
 <h2 class="text-base font-semibold mt-2 text-slate-900 leading-relaxed whitespace-pre-wrap" id="question-text">データを読み込んでいます...</h2>
@@ -78,10 +82,6 @@
 <div class="space-y-3" id="options-container"></div>
 <!-- 1問ずつ確認モード：回答・正解・解説の表示領域 -->
 <div id="feedback-container" class="mt-4"></div>
-<!-- 利用頻度が低いため目立たないテキストリンクにしている -->
-<div class="mt-10 mb-2 text-center">
-<button onclick="abortQuiz()" class="text-xs text-slate-400 underline">出題を中断して範囲選択に戻る</button>
-</div>
 </div>
 
 <!-- Result Screen -->
@@ -91,7 +91,7 @@
 <div class="text-4xl font-extrabold text-indigo-600 mb-2" id="score-display">0 / 0</div>
 <p class="text-sm text-slate-600 mb-6" id="pass-fail-text">合格基準: 60%以上</p>
 <button id="retry-wrong-btn" onclick="retryWrongQuestions()" class="hidden w-full bg-rose-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-rose-700 transition mb-3">間違えた問題のみ出題する</button>
-<button onclick="retrySameQuestions()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-emerald-700 transition mb-3">同じ問題を出題する</button>
+<button onclick="retrySameQuestions()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-emerald-700 transition mb-3">同じ問題に挑戦する</button>
 <button onclick="restartQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg active:bg-indigo-700 transition">出題範囲選択画面に戻る</button>
 </div>
 <div class="mt-6 border-t pt-4">
