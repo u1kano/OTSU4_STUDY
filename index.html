@@ -21,7 +21,7 @@
 <h2 class="text-base font-bold text-slate-900 mb-4">出題範囲を選択してください</h2>
 <div class="space-y-3" id="category-options">
 <label class="flex items-start p-3 border rounded-xl cursor-pointer transition border-indigo-600 bg-indigo-50/50">
-<input type="radio" name="category" value="questions.json" checked onclick="updateCategoryHighlight()" class="mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+<input type="radio" name="category" value="questions1_pickup.json" checked onclick="updateCategoryHighlight()" class="mt-1 h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
 <span class="ml-3 text-sm text-slate-700 leading-snug">危険物に関する法令</span>
 </label>
 <label class="flex items-start p-3 border rounded-xl cursor-pointer transition border-slate-200 hover:bg-slate-50">
@@ -140,7 +140,9 @@
 // ※画面からの切り替えは廃止。デバッグ用に定数として残している
 const RANDOM_QUESTIONS = true;
 
-const DEFAULT_QUESTION_FILE = 'questions.json';
+// const DEFAULT_QUESTION_FILE = 'questions.json';
+const DEFAULT_QUESTION_FILE = 'questions1_pickup.json';
+
 const DEFAULT_QUESTION_COUNT = 10;
 const RANGE_SIZE = 100;                     // 出題箇所の刻み幅
 const PASS_THRESHOLD_PERCENT = 60;          // 合格ライン（%）
